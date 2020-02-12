@@ -1,0 +1,114 @@
+---
+title: "RRSP-taxes"
+date: "12/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 999)
+
+library(here)
+library(janitor)
+library(tidyverse)
+library(data.table)
+library(lubridate)
+library(conflicted)
+library(readxl)
+
+conflict_prefer("here", "here")
+conflict_prefer("year", "lubridate")
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+```
+
+## RRSP transactions
+
+Downloaded from IA on 12 Feb 2020
+History of RRSP contributions since 2015 start with WCS Canada
+
+```{r load}
+here()
+data <- read_excel(here::here("data", "raw-transactions-from-IA.xlsx")) %>% 
+  clean_names() %>% 
+  as_tibble() %>% 
+  mutate(year = lubridate::year(transaction_date), 
+         month = lubridate::month(transaction_date))
+
+
+data
+
+```
+
+## What is this file? 
+
+```{r explore, echo=FALSE}
+
+#Different transaction types
+data %>% 
+  tabyl(transaction) %>% 
+  arrange(-n)
+
+#When did I withdraw
+#NOT WITHDRAWAL; 'Cash reimbursement'
+
+withdrawal <- data %>% 
+  filter(transaction == "Cash reimbursement") %>% 
+  filter(number_of_units != 0) 
+
+view(withdrawal)
+sum(withdrawal$amount)
+  
+
+#Looks like I want deposits
+
+#Cash reimbursement is withdrawal on 30 Sept 2019
+
+#Look at deposits only
+contributions <- data %>% 
+  dplyr::filter(transaction == "Deposit")
+  #dplyr::filter(transaction %in% c("Deposit", "Cash reimbursement")) %>%
+  #filter(number_of_units != 0) 
+
+contributions %>% 
+  tabyl(account)
+
+contributions %>% 
+  tabyl(year, month)
+
+summary <- contributions %>% 
+  select(year, 
+         month, 
+         transaction_date, 
+         transaction, 
+         amount, 
+         account) %>% 
+  group_by(year, 
+           month, 
+           transaction) %>% 
+  summarize(sum_amount = sum(amount))
+
+hist(summary$sum_amount)
+summary(summary$sum_amount)
+
+sum(summary$sum_amount)
+
+summary
+view(summary)
+
+summary %>% 
+  fwrite(here("outputs", 
+              "Darling-RRSP-contributions-by-month.csv"))
+
+
+```
+
+
+Pretty sure I should sum across employeer, regular and voluntary -- since these would be the total contributions to RRSP
+
+
+
+
+
+
